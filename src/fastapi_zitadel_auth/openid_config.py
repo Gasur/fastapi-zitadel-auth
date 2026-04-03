@@ -19,6 +19,7 @@ class OpenIdConfig(BaseModel):
     config_url: str
     authorization_url: str
     token_url: str
+    introspection_endpoint: str = ""
     jwks_uri: str
     signing_keys: dict[str, RSAPublicKey] = {}
 
@@ -41,6 +42,7 @@ class OpenIdConfig(BaseModel):
                 self.issuer_url = config["issuer"]
                 self.authorization_url = config["authorization_endpoint"]
                 self.token_url = config["token_endpoint"]
+                self.introspection_endpoint = config.get("introspection_endpoint", "")
                 self.jwks_uri = config["jwks_uri"]
                 self.signing_keys = self._parse_jwks(new_keys)
                 self.last_refresh_timestamp = current_time
@@ -54,6 +56,7 @@ class OpenIdConfig(BaseModel):
         log.info("Issuer:               %s", self.issuer_url)
         log.info("Authorization url:    %s", self.authorization_url)
         log.info("Token url:            %s", self.token_url)
+        log.info("Introspection url:    %s", self.introspection_endpoint)
         log.debug("Keys url:            %s", self.jwks_uri)
         log.debug("Last refresh:        %s", self.last_refresh_timestamp)
         log.debug("Signing keys:        %s", len(self.signing_keys))

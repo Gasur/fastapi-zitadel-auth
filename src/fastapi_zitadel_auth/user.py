@@ -55,3 +55,38 @@ class DefaultZitadelUser(BaseZitadelUser[DefaultZitadelClaims]):
     """Default Zitadel user implementation"""
 
     claims: DefaultZitadelClaims
+
+
+# --- Introspection models ---
+
+IntrospectionClaimsT = TypeVar("IntrospectionClaimsT", bound="IntrospectionClaims")
+
+
+class IntrospectionClaims(JwtClaims):
+    """Base model for token introspection response claims (RFC 7662) from Zitadel"""
+
+    scope: str | None = Field(default=None, description="Space delimited list of scopes granted to the token")
+    token_type: str | None = Field(default=None, description="Type of the inspected token (always Bearer)")
+    username: str | None = Field(default=None, description="ZITADEL login name of the user (username@primarydomain)")
+
+
+class DefaultZitadelIntrospectionClaims(IntrospectionClaims):
+    """Default Zitadel introspection claims with project roles"""
+
+    project_roles: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_project_roles(cls, values: dict) -> dict:
+        """Extract project-specific role claim into project_roles field"""
+        for key in values.keys():
+            if key.startswith("urn:zitadel:iam:org:project:") and key.endswith(":roles"):
+                values["project_roles"] = values[key]
+                break
+        return values
+
+
+class DefaultZitadelIntrospectionUser(BaseZitadelUser[DefaultZitadelIntrospectionClaims]):
+    """Default Zitadel user from introspection response"""
+
+    claims: DefaultZitadelIntrospectionClaims

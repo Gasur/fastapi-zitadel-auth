@@ -11,15 +11,19 @@ from starlette.testclient import TestClient
 
 from demo_project.dependencies import zitadel_auth
 from demo_project.main import app
-from fastapi_zitadel_auth import ZitadelAuth
+from fastapi_zitadel_auth import ZitadelAuth, ZitadelIntrospectionAuth
+from fastapi_zitadel_auth.introspection import BasicAuth, JwtProfileAuth
 from tests.utils import (
     create_openid_keys,
     openid_config_url,
     openid_configuration,
     keys_url,
+    introspection_url,
     ZITADEL_CLIENT_ID,
+    ZITADEL_API_CLIENT_SECRET,
     ZITADEL_ISSUER,
     ZITADEL_PROJECT_ID,
+    jwt_profile_key_file,
 )
 
 
@@ -99,3 +103,58 @@ def mock_openid_and_no_valid_keys(respx_mock, mock_openid):
 def public_client():
     """Test client that does not run startup event."""
     yield TestClient(app=app)
+
+
+# --- Introspection fixtures ---
+
+
+@pytest.fixture
+def fastapi_app_introspection_basic():
+    """FastAPI app fixture using introspection with Basic Auth"""
+    auth = ZitadelIntrospectionAuth(
+        issuer_url=ZITADEL_ISSUER,
+        app_client_id=ZITADEL_CLIENT_ID,
+        project_id=ZITADEL_PROJECT_ID,
+        allowed_scopes={"scope1": "Some scope"},
+        auth_method=BasicAuth(client_id=ZITADEL_CLIENT_ID, client_secret=ZITADEL_API_CLIENT_SECRET),
+    )
+    app.dependency_overrides[zitadel_auth] = auth
+    yield auth
+    if auth._http_client and not auth._http_client.is_closed:
+        pass
+
+
+@pytest.fixture
+def fastapi_app_introspection_jwt_profile():
+    """FastAPI app fixture using introspection with JWT Profile auth"""
+    auth = ZitadelIntrospectionAuth(
+        issuer_url=ZITADEL_ISSUER,
+        app_client_id=ZITADEL_CLIENT_ID,
+        project_id=ZITADEL_PROJECT_ID,
+        allowed_scopes={"scope1": "Some scope"},
+        auth_method=JwtProfileAuth(key_file=jwt_profile_key_file),
+    )
+    app.dependency_overrides[zitadel_auth] = auth
+    yield auth
+    if auth._http_client and not auth._http_client.is_closed:
+        pass
+
+
+@pytest.fixture
+def mock_openid_keys_and_introspection(respx_mock, mock_openid):
+    """Mock OpenID config, keys, and a successful introspection response."""
+    from tests.utils import create_introspection_response
+
+    respx_mock.get(keys_url()).respond(json=create_openid_keys())
+    respx_mock.post(introspection_url()).respond(json=create_introspection_response(active=True, role="admin"))
+    yield respx_mock
+
+
+@pytest.fixture
+def mock_openid_keys_and_inactive_introspection(respx_mock, mock_openid):
+    """Mock OpenID config, keys, and an inactive introspection response."""
+    from tests.utils import create_introspection_response
+
+    respx_mock.get(keys_url()).respond(json=create_openid_keys())
+    respx_mock.post(introspection_url()).respond(json=create_introspection_response(active=False))
+    yield respx_mock

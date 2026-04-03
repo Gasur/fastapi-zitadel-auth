@@ -35,3 +35,13 @@ class ForbiddenException(HTTPException):
             detail={"error": "insufficient_scope", "message": detail},
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+class IntrospectionException(HTTPException):
+    """Exception raised when the introspection endpoint request fails."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "introspection_error", "message": detail},
+        )

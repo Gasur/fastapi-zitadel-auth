@@ -236,3 +236,56 @@ def create_openid_keys(empty_keys: bool = False, no_valid_keys: bool = False, ad
 
 valid_key = rsa.generate_private_key(backend=default_backend(), public_exponent=65537, key_size=2048)
 evil_key = rsa.generate_private_key(backend=default_backend(), public_exponent=65537, key_size=2048)
+
+# Introspection test helpers
+
+ZITADEL_API_CLIENT_SECRET = "test-api-client-secret"
+
+
+def introspection_url() -> str:
+    """Introspection endpoint URL"""
+    return f"{ZITADEL_ISSUER}/oauth/v2/introspect"
+
+
+def create_introspection_response(active: bool = True, role: str | None = None, scopes: str = "scope1") -> dict:
+    """Create a mock introspection response matching Zitadel's format (RFC 7662)."""
+    if not active:
+        return {"active": False}
+
+    now = int(datetime.now().timestamp())
+    response: dict = {
+        "active": True,
+        "aud": [ZITADEL_PROJECT_ID, ZITADEL_CLIENT_ID],
+        "client_id": ZITADEL_CLIENT_ID,
+        "exp": now + 3600,
+        "iat": now,
+        "iss": ZITADEL_ISSUER,
+        "sub": "user123",
+        "nbf": now,
+        "jti": "unique-token-id",
+        "scope": scopes,
+        "token_type": "Bearer",
+        "username": f"user123@{ZITADEL_PRIMARY_DOMAIN}",
+    }
+
+    if role:
+        response[f"urn:zitadel:iam:org:project:{ZITADEL_PROJECT_ID}:roles"] = {
+            role: {"role_id": ZITADEL_PRIMARY_DOMAIN}
+        }
+
+    return response
+
+
+introspection_key = rsa.generate_private_key(backend=default_backend(), public_exponent=65537, key_size=2048)
+
+jwt_profile_key_file: dict[str, str] = {
+    "type": "application",
+    "keyId": "test-introspection-key-1",
+    "key": introspection_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8"),
+    "appId": "test-app-id",
+    "clientId": ZITADEL_CLIENT_ID,
+}
